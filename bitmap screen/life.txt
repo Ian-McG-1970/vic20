@@ -1,0 +1,26 @@
+; HiUxLife is a hi-resolution (160x160) version of Life for the Unexpanded VIC-20.
+
+Usage:
+
+Run the .prg, it generates a bitmapped random starting image and then runs life for successive generations displaying the generation on the bottom left-hand corner up to 99999 generations. If you press a key from 1..9,A..F it'll regenerate another random display with cells filled at a probability 15/16 down to 1/16. The default setting ( which is equivalent to pressing C) will run for over 3000 generations without reducing to simple oscillating patterns.
+
+Description
+
+As we know, it's (just) possible to fit a small machine code program with hi-resolution graphics on an Unexpanded VIC-20. By limiting the screen to 160x160 and using double-height characters we need 200 bytes for the video and 200*16 = 3200 bytes for the character set, implementing a full bitmapped frame buffer. In theory this leaves us with 4096-3200-200 = 696 bytes for the machine code, though this is not quite true as we'll see.
+
+The unusual trick here is to move the video memory to $1000 even though we're using an unexpanded VIC-20. So, initially the .prg contains the initial line of BASIC which calls the machine code and the machine code is set to start after the beginning of where the video memory will be, $10c8.
+
+Thus the memory map looks like this:
+CODE: SELECT ALL
+
+;$1000            $10c8       $1380        $2000
+;[Basic/Video:200][MCode:696b][Chrs:200*16=3200]
+It's not quite true that we have to make do with 696b of code. With careful initialisation we could allow code to run into the bitmap area, but I don't exploit this in this program, instead the code here is 686 bytes long (the entire .prg is 886 bytes), leaving 10b spare.
+
+Normally Life uses two whole arrays to represent the current and next generation, but HiUxLife just uses one array (the bitmap) plus a copy of the current row and previous row. This is possible because each new row of cells is dependant upon only its own row, the one above and the one below. Since the current one is being modified and the one above is already modified we must cache the original unmodified versions, but the row below hasn't been modified so this can be read directly from the screen.
+
+In addition, the top row must also be saved at the beginning of a generation because it contains the row below when calculating the bottom row. The cached data is stored in the cassette buffer.
+
+HiUxLife also makes a couple of other optimisations: the first byte of every cached row is also copied to the end in order to avoid having to perform special wrap-around tests or indexing. Also the 9 bytes surrounding the current byte's worth of cells is cached again so that it can index over the rows and thus save space in the calculations. Perhaps I ought to revisit this and do it a different way.
+
+Currently each generation takes 4.2s to compute. The current generation is displayed at the bottom - by explicitly copying the bitmap from the character table in ROM (all the characters are really double-height in hires mode).
